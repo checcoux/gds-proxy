@@ -19,8 +19,20 @@ final class GdsParser
         $bodyText = trim(preg_replace('/\s+/', ' ', $crawler->filter('body')->text('')));
 
         $stopName = null;
-        if (preg_match('/Nome\s+Fermata:\s*([^0-9]{2,}?)\s*(?:LINEA|$)/iu', $bodyText, $m)) {
+        if (preg_match('/Nome\s*Fermata\s*:\s*([A-Za-zÀ-ÖØ-öø-ÿ0-9\'\-\s]+?)(?:\s+(?:N\.\s*Fermata|LINEA|Per\s+Informazioni|www\.|$))/u', $bodyText, $m)) {
             $stopName = trim($m[1]);
+        }
+        if (!$stopName) {
+            $nodeWithLabel = $crawler->filterXPath("//*[contains(normalize-space(.), 'Nome Fermata')]");
+            if ($nodeWithLabel->count() > 0) {
+                $txt = trim(preg_replace('/\s+/', ' ', $nodeWithLabel->first()->text('')));
+                if (preg_match('/Nome\s*Fermata\s*:\s*(.+)$/u', $txt, $mm)) {
+                    $cand = preg_split('/\s+(?:N\.\s*Fermata|LINEA|Per\s+Informazioni|www\.)/u', trim($mm[1]))[0] ?? null;
+                    if ($cand) {
+                        $stopName = trim($cand);
+                    }
+                }
+            }
         }
 
         $pageStationId = $stationId;
@@ -55,16 +67,13 @@ final class GdsParser
                 $c1raw = $tds->eq(1);
                 $c1 = trim(preg_replace('/\s+/', ' ', $c1raw->text('')));
                 $c2 = trim(preg_replace('/\s+/', ' ', $tds->eq(2)->text('')));
-
                 if ($c0 === '' || preg_match('/^(LINEA|N\.\s*Fermata)/iu', $c0)) {
                     return;
                 }
                 if (!preg_match('/^\d{1,2}:\d{2}$/', $c1)) {
                     return;
                 }
-
                 $flags = $this->detectFlags($c1raw);
-
                 $entries[] = [
                     'line' => $c0,
                     'time' => $c1,
